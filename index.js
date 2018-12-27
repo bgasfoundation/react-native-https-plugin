@@ -1,5 +1,6 @@
 'use strict';
 import { NativeModules } from 'react-native';
+var Q = require('q');
 
 export default class RestClient {
 
@@ -23,7 +24,6 @@ export default class RestClient {
             if (err) {
                 deferred.reject(err);
             } else {
-                var Q = require('q');
                 res.json = function() {
                     return Q.fcall(function () {
                         return JSON.parse(res.bodyString);
