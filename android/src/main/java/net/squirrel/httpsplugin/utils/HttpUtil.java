@@ -82,7 +82,7 @@ public class HttpUtil {
         String method = request.method.toUpperCase();
 
         connection = (HttpsURLConnection) url.openConnection();
-        if (request.truststore != null) {
+        if (request.endpoint != null && request.endpoint.startsWith("https")) {
             connection.setSSLSocketFactory(
                     SSLContextUtil.getInstance(request.truststore, request.keystore, request.storeType, request.storePassword)
                             .getContext().getSocketFactory()
