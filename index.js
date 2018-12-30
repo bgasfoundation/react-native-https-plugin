@@ -18,7 +18,7 @@ export default class RestClient {
         this.devMode = devMode;
     }
 
-    fetch(url, obj, callback) {
+    fetchHttps(url, obj, callback) {
         var deferred = Q.defer();
         NativeModules.RNHttpsPlugin.fetch(url, obj, (err, res) => {
             if (err) {
@@ -73,7 +73,11 @@ export default class RestClient {
         if (opts.body) {
             Object.assign(opts, { body: JSON.stringify(opts.body) });
         }
-        const fetchPromise = () => this.fetch(fullRoute, opts);
+        let fetchPromise;
+        if (this.baseUrl.startsWith('https'))
+            fetchPromise = () => this.fetchHttps(fullRoute, opts);
+        else
+            fetchPromise = () => fetch(fullRoute, opts);
         if (this.devMode && this.simulatedDelay > 0) {
             // Simulate an n-second delay in every request
             return this._simulateDelay()
