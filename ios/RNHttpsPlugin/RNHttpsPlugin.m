@@ -7,7 +7,6 @@
 //
 
 #import "RNHttpsPlugin.h"
-#import "RCTBridge.h"
 
 @interface RNHttpsPluginException : NSException
 @end
@@ -35,7 +34,7 @@
 - (NSArray *)pinnedCertificateData {
     NSMutableArray *localCertData = [NSMutableArray array];
     for (NSString* certName in self.certNames) {
-        NSString *cerPath = [[NSBundle mainBundle] pathForResource:certName ofType:@"cer"];
+        NSString *cerPath = [[NSBundle mainBundle] pathForResource:certName ofType:nil];
         if (cerPath == nil) {
             @throw [[RNHttpsPluginException alloc]
                 initWithName:@"CertificateError"
@@ -55,10 +54,10 @@
 - (void)URLSession:(NSURLSession *)session didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential * _Nullable credential))completionHandler {
 
     if ([[[challenge protectionSpace] authenticationMethod] isEqualToString:NSURLAuthenticationMethodServerTrust]) {
-        NSString *domain = challenge.protectionSpace.host;
         SecTrustRef serverTrust = [[challenge protectionSpace] serverTrust];
 
-        NSArray *policies = @[(__bridge_transfer id)SecPolicyCreateSSL(true, (__bridge CFStringRef)domain)];
+        // ignore verifying domain name so that the certifcate can authenticate multiple IPs
+        NSArray *policies = @[(__bridge_transfer id)SecPolicyCreateSSL(true, nil)];
 
         SecTrustSetPolicies(serverTrust, (__bridge CFArrayRef)policies);
         // setup
@@ -101,6 +100,11 @@ RCT_EXPORT_MODULE();
     return self;
 }
 
++ (BOOL)requiresMainQueueSetup
+{
+  return true;
+}
+
 RCT_EXPORT_METHOD(fetch:(NSString *)url obj:(NSDictionary *)obj callback:(RCTResponseSenderBlock)callback) {
     NSURL *u = [NSURL URLWithString:url];
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:u];
@@ -111,7 +115,7 @@ RCT_EXPORT_METHOD(fetch:(NSString *)url obj:(NSDictionary *)obj callback:(RCTRes
             [request setHTTPMethod:obj[@"method"]];
         }
         if (obj[@"timeout"]) {
-          [request setTimeoutInterval:[obj[@"timeoutInterval"] doubleValue] / 1000];
+          [request setTimeoutInterval:[obj[@"timeout"] intValue] / 1000];
         }
         if (obj[@"headers"] && [obj[@"headers"] isKindOfClass:[NSDictionary class]]) {
             NSMutableDictionary *m = [obj[@"headers"] mutableCopy];
