@@ -16,39 +16,39 @@
 // private delegate for verifying certs
 @interface NSURLSessionSSLPinningDelegate:NSObject <NSURLSessionDelegate>
 
-- (id)initWithCertNames:(NSArray<NSString *> *)certNames;
+- (id)initWithTrustCertNames:(NSArray<NSString *> *)trustCertNames;
 
-@property (nonatomic, strong) NSArray<NSString *> *certNames;
+@property (nonatomic, strong) NSArray<NSString *> *trustCertNames;
 
 @end
 
 @implementation NSURLSessionSSLPinningDelegate
 
-- (id)initWithCertNames:(NSArray<NSString *> *)certNames {
+- (id)initWithTrustCertNames:(NSArray<NSString *> *)trustCertNames {
     if (self = [super init]) {
-        _certNames = certNames;
+        _trustCertNames = trustCertNames;
     }
     return self;
 }
 
-- (NSArray *)pinnedCertificateData {
-    NSMutableArray *localCertData = [NSMutableArray array];
-    for (NSString* certName in self.certNames) {
-        NSString *cerPath = [[NSBundle mainBundle] pathForResource:certName ofType:nil];
-        if (cerPath == nil) {
+- (NSArray *)pinnedTrustCertificateData {
+    NSMutableArray *localTrustCertData = [NSMutableArray array];
+    for (NSString* trustCertName in self.trustCertNames) {
+        NSString *trustCertPath = [[NSBundle mainBundle] pathForResource:trustCertName ofType:nil];
+        if (trustCertPath == nil) {
             @throw [[RNHttpsPluginException alloc]
                 initWithName:@"CertificateError"
                 reason:@"Can not load certicate given, check it's in the app resources."
                 userInfo:nil];
         }
-        [localCertData addObject:[NSData dataWithContentsOfFile:cerPath]];
+        [localTrustCertData addObject:[NSData dataWithContentsOfFile:trustCertPath]];
     }
 
-    NSMutableArray *pinnedCertificates = [NSMutableArray array];
-    for (NSData *certificateData in localCertData) {
-        [pinnedCertificates addObject:(__bridge_transfer id)SecCertificateCreateWithData(NULL, (__bridge CFDataRef)certificateData)];
+    NSMutableArray *pinnedTrustCertificates = [NSMutableArray array];
+    for (NSData *trustCertData in localTrustCertData) {
+        [pinnedTrustCertificates addObject:(__bridge_transfer id)SecCertificateCreateWithData(NULL, (__bridge CFDataRef)trustCertData)];
     }
-    return pinnedCertificates;
+  return pinnedTrustCertificates;
 }
 
 - (void)URLSession:(NSURLSession *)session didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential * _Nullable credential))completionHandler {
@@ -61,7 +61,7 @@
 
         SecTrustSetPolicies(serverTrust, (__bridge CFArrayRef)policies);
         // setup
-        SecTrustSetAnchorCertificates(serverTrust, (__bridge CFArrayRef)self.pinnedCertificateData);
+        SecTrustSetAnchorCertificates(serverTrust, (__bridge CFArrayRef)self.pinnedTrustCertificateData);
         SecTrustResultType result;
 
         // evaluate
@@ -133,11 +133,11 @@ RCT_EXPORT_METHOD(fetch:(NSString *)url obj:(NSDictionary *)obj callback:(RCTRes
     }
     if (obj && obj[@"sslconfig"] && obj[@"sslconfig"][@"truststore"]) {
         // load truststore
-        NSURLSessionSSLPinningDelegate *delegate = [[NSURLSessionSSLPinningDelegate alloc] initWithCertNames:@[obj[@"sslconfig"][@"truststore"]]];
+        NSURLSessionSSLPinningDelegate *delegate = [[NSURLSessionSSLPinningDelegate alloc] initWithTrustCertNames:@[obj[@"sslconfig"][@"truststore"]]];
         session = [NSURLSession sessionWithConfiguration:self.sessionConfig delegate:delegate delegateQueue:[NSOperationQueue mainQueue]];
     } else if (obj && obj[@"sslconfig"] && obj[@"sslconfig"][@"certs"]) {
         // load all certs
-        NSURLSessionSSLPinningDelegate *delegate = [[NSURLSessionSSLPinningDelegate alloc] initWithCertNames:obj[@"sslconfig"][@"certs"]];
+        NSURLSessionSSLPinningDelegate *delegate = [[NSURLSessionSSLPinningDelegate alloc] initWithTrustCertNames:obj[@"sslconfig"][@"certs"]];
         session = [NSURLSession sessionWithConfiguration:self.sessionConfig delegate:delegate delegateQueue:[NSOperationQueue mainQueue]];
     } else {
         session = [NSURLSession sessionWithConfiguration:self.sessionConfig];
