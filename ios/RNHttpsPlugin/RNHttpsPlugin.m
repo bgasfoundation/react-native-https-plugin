@@ -16,44 +16,108 @@
 // private delegate for verifying certs
 @interface NSURLSessionSSLPinningDelegate:NSObject <NSURLSessionDelegate>
 
-- (id)initWithTrustCertNames:(NSArray<NSString *> *)trustCertNames;
+- (id)initWithCertInfo:(NSString*)trustCertName credCertName:(NSString*)credCertName credCertPassword:(NSString*)credCertPassword;
 
-@property (nonatomic, strong) NSArray<NSString *> *trustCertNames;
+@property (nonatomic, strong) NSString *trustCertName;
+@property (nonatomic, strong) NSString *credCertName;
+@property (nonatomic, strong) NSString *credCertPassword;
 
 @end
 
 @implementation NSURLSessionSSLPinningDelegate
 
-- (id)initWithTrustCertNames:(NSArray<NSString *> *)trustCertNames {
+- (id)initWithCertInfo:(NSString*)trustCertName credCertName:(NSString*)credCertName credCertPassword:(NSString*)credCertPassword {
     if (self = [super init]) {
-        _trustCertNames = trustCertNames;
+      _trustCertName = trustCertName;
+      _credCertName = credCertName;
+      _credCertPassword = credCertPassword;
     }
     return self;
 }
 
 - (NSArray *)pinnedTrustCertificateData {
-    NSMutableArray *localTrustCertData = [NSMutableArray array];
-    for (NSString* trustCertName in self.trustCertNames) {
-        NSString *trustCertPath = [[NSBundle mainBundle] pathForResource:trustCertName ofType:nil];
-        if (trustCertPath == nil) {
-            @throw [[RNHttpsPluginException alloc]
-                initWithName:@"CertificateError"
-                reason:@"Can not load certicate given, check it's in the app resources."
-                userInfo:nil];
-        }
-        [localTrustCertData addObject:[NSData dataWithContentsOfFile:trustCertPath]];
+    NSMutableArray *localCertData = [NSMutableArray array];
+
+    NSString *certPath = [[NSBundle mainBundle] pathForResource:self.trustCertName ofType:nil];
+    if (certPath == nil) {
+        @throw [[RNHttpsPluginException alloc]
+            initWithName:@"CertificateError"
+            reason:@"Can not load certicate given, check it's in the app resources."
+            userInfo:nil];
+    }
+    [localCertData addObject:[NSData dataWithContentsOfFile:certPath]];
+
+    NSMutableArray *pinnedCertificates = [NSMutableArray array];
+    for (NSData *certData in localCertData) {
+        [pinnedCertificates addObject:(__bridge_transfer id)SecCertificateCreateWithData(NULL, (__bridge CFDataRef)certData)];
+    }
+    return pinnedCertificates;
+}
+
+- (SecIdentityRef)pinnedCredCertificateData {
+  SecIdentityRef clientCertificate = NULL;
+
+    NSString *certPath = [[NSBundle mainBundle] pathForResource:self.credCertName ofType:nil];
+    if (certPath == nil) {
+      @throw [[RNHttpsPluginException alloc]
+              initWithName:@"CertificateError"
+              reason:@"Can not load certicate given, check it's in the app resources."
+              userInfo:nil];
     }
 
-    NSMutableArray *pinnedTrustCertificates = [NSMutableArray array];
-    for (NSData *trustCertData in localTrustCertData) {
-        [pinnedTrustCertificates addObject:(__bridge_transfer id)SecCertificateCreateWithData(NULL, (__bridge CFDataRef)trustCertData)];
+    NSData *pkcs12Data = [[NSData alloc] initWithContentsOfFile:certPath];
+    CFDataRef inPKCS12Data = (__bridge CFDataRef)pkcs12Data;
+    CFStringRef password = (__bridge CFStringRef)(self.credCertPassword);
+    const void *keys[] = { kSecImportExportPassphrase };
+    const void *values[] = { password };
+    CFDictionaryRef optionsDictionary = CFDictionaryCreate(NULL, keys, values, 1, NULL, NULL);
+    CFArrayRef items = NULL;
+
+    OSStatus err = SecPKCS12Import(inPKCS12Data, optionsDictionary, &items);
+
+    CFRelease(optionsDictionary);
+    CFRelease(password);
+
+    if (err == errSecSuccess && CFArrayGetCount(items) > 0) {
+      CFDictionaryRef pkcsDict = CFArrayGetValueAtIndex(items, 0);
+
+      SecTrustRef trust = (SecTrustRef)CFDictionaryGetValue(pkcsDict, kSecImportItemTrust);
+
+      if (trust != NULL) {
+        clientCertificate = (SecIdentityRef)CFDictionaryGetValue(pkcsDict, kSecImportItemIdentity);
+        CFRetain(clientCertificate);
+      }
     }
-  return pinnedTrustCertificates;
+
+    if (items) {
+      CFRelease(items);
+    }
+    return clientCertificate;
+}
+
+- (NSURLCredential *)provideClientCertificate {
+  SecIdentityRef identity = [self pinnedCredCertificateData];
+
+  if (!identity) {
+    return nil;
+  }
+
+  SecCertificateRef certificate = NULL;
+  SecIdentityCopyCertificate (identity, &certificate);
+  const void *certs[] = {certificate};
+  CFArrayRef certArray = CFArrayCreate(kCFAllocatorDefault, certs, 1, NULL);
+  NSURLCredential *credential = [NSURLCredential credentialWithIdentity:identity certificates:(__bridge NSArray *)certArray persistence:NSURLCredentialPersistencePermanent];
+  CFRelease(certArray);
+
+  return credential;
 }
 
 - (void)URLSession:(NSURLSession *)session didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential * _Nullable credential))completionHandler {
 
-    if ([[[challenge protectionSpace] authenticationMethod] isEqualToString:NSURLAuthenticationMethodServerTrust]) {
+    if ([[[challenge protectionSpace] authenticationMethod] isEqualToString:NSURLAuthenticationMethodClientCertificate]) {
+      NSURLCredential *credential = [self provideClientCertificate];
+      completionHandler(NSURLSessionAuthChallengeUseCredential, credential);
+    } else if ([[[challenge protectionSpace] authenticationMethod] isEqualToString:NSURLAuthenticationMethodServerTrust]) {
         SecTrustRef serverTrust = [[challenge protectionSpace] serverTrust];
 
         // ignore verifying domain name so that the certifcate can authenticate multiple IPs
@@ -131,18 +195,20 @@ RCT_EXPORT_METHOD(fetch:(NSString *)url obj:(NSDictionary *)obj callback:(RCTRes
             [request setHTTPBody:data];
         }
     }
-    if (obj && obj[@"sslconfig"] && obj[@"sslconfig"][@"truststore"]) {
-        // load truststore
-        NSURLSessionSSLPinningDelegate *delegate = [[NSURLSessionSSLPinningDelegate alloc] initWithTrustCertNames:@[obj[@"sslconfig"][@"truststore"]]];
+    if (obj && obj[@"sslconfig"]) {
+      if (!obj[@"sslconfig"][@"truststore"] || !obj[@"sslconfig"][@"keystore"]) {
+         session = [NSURLSession sessionWithConfiguration:self.sessionConfig];
+      } else {
+        // load trust and/or credential certificate
+        NSURLSessionSSLPinningDelegate *delegate = [[NSURLSessionSSLPinningDelegate alloc] initWithCertInfo:obj[@"sslconfig"][@"truststore"]
+                           credCertName:obj[@"sslconfig"][@"keystore"]
+                           credCertPassword:obj[@"sslconfig"][@"storePassword"]];
+
         session = [NSURLSession sessionWithConfiguration:self.sessionConfig delegate:delegate delegateQueue:[NSOperationQueue mainQueue]];
+      }
     } else {
         session = [NSURLSession sessionWithConfiguration:self.sessionConfig];
     }
-
-    //implement load keystore.
-    //keystore: '*********',
-    //storeType: 'PKCS12',
-    //storePassword: '*******'
 
     __block NSURLSessionDataTask *dataTask = [session dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
         if (!error) {
