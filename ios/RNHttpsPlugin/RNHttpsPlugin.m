@@ -135,10 +135,6 @@ RCT_EXPORT_METHOD(fetch:(NSString *)url obj:(NSDictionary *)obj callback:(RCTRes
         // load truststore
         NSURLSessionSSLPinningDelegate *delegate = [[NSURLSessionSSLPinningDelegate alloc] initWithTrustCertNames:@[obj[@"sslconfig"][@"truststore"]]];
         session = [NSURLSession sessionWithConfiguration:self.sessionConfig delegate:delegate delegateQueue:[NSOperationQueue mainQueue]];
-    } else if (obj && obj[@"sslconfig"] && obj[@"sslconfig"][@"certs"]) {
-        // load all certs
-        NSURLSessionSSLPinningDelegate *delegate = [[NSURLSessionSSLPinningDelegate alloc] initWithTrustCertNames:obj[@"sslconfig"][@"certs"]];
-        session = [NSURLSession sessionWithConfiguration:self.sessionConfig delegate:delegate delegateQueue:[NSOperationQueue mainQueue]];
     } else {
         session = [NSURLSession sessionWithConfiguration:self.sessionConfig];
     }
