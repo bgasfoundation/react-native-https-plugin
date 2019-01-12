@@ -76,7 +76,6 @@
     OSStatus err = SecPKCS12Import(inPKCS12Data, optionsDictionary, &items);
 
     CFRelease(optionsDictionary);
-    CFRelease(password);
 
     if (err == errSecSuccess && CFArrayGetCount(items) > 0) {
       CFDictionaryRef pkcsDict = CFArrayGetValueAtIndex(items, 0);
