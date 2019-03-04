@@ -25,8 +25,8 @@
     },
     "homepage": "https://github.com/wallchainfoundation/react-native-https-plugin#readme",
     "dependencies": {
-        "q": "^1.4.1",
-        "qs": "^6.3.0"
+        "q": "^1.5.1",
+        "qs": "^6.6.0"
     },
     "devDependencies": {}
 }
