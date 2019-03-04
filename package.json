@@ -1,36 +1,32 @@
 {
-    "name": "react-native-https-plugin", 
-    "version": "0.1.0", 
-    "description": "React Native fetch with SSL support", 
-    "main": "index.js", 
+    "name": "react-native-https-plugin",
+    "version": "0.1.0",
+    "description": "React Native fetch with SSL support",
+    "main": "index.js",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"
-    }, 
+    },
     "repository": {
-        "type": "git", 
+        "type": "git",
         "url": "https://github.com/wallchainfoundation/react-native-https-plugin"
-    }, 
+    },
     "keywords": [
-        "react-native", 
-        "ios", 
-        "android", 
-        "SSL", 
-        "https", 
+        "react-native",
+        "ios",
+        "android",
+        "SSL",
+        "https",
         "Network"
-    ], 
-    "author": "oncecrossover", 
-    "license": "MIT", 
+    ],
+    "author": "oncecrossover",
+    "license": "MIT",
     "bugs": {
         "url": "https://github.com/wallchainfoundation/react-native-https-plugin/issues"
-    }, 
-    "homepage": "https://github.com/wallchainfoundation/react-native-https-plugin#readme", 
-    "devDependencies": {
-    }, 
-    "peerDependencies": {
-        "react-native": ">=0.55.2 <1.0.0"
-    }, 
+    },
+    "homepage": "https://github.com/wallchainfoundation/react-native-https-plugin#readme",
     "dependencies": {
-        "q": "^1.4.1", 
+        "q": "^1.4.1",
         "qs": "^6.3.0"
-    }
+    },
+    "devDependencies": {}
 }
