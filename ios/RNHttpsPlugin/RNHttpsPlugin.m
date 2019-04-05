@@ -178,7 +178,9 @@ RCT_EXPORT_METHOD(fetch:(NSString *)url obj:(NSDictionary *)obj callback:(RCTRes
             [request setHTTPMethod:obj[@"method"]];
         }
         if (obj[@"timeout"]) {
-          [request setTimeoutInterval:[obj[@"timeout"] intValue] / 1000];
+          int timeoutInSeconds = [obj[@"timeout"] intValue] / 1000;
+          self.sessionConfig.timeoutIntervalForRequest = timeoutInSeconds;
+          self.sessionConfig.timeoutIntervalForResource = 2 * timeoutInSeconds;
         }
         if (obj[@"headers"] && [obj[@"headers"] isKindOfClass:[NSDictionary class]]) {
             NSMutableDictionary *m = [obj[@"headers"] mutableCopy];
