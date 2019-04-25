@@ -1,6 +1,7 @@
 'use strict';
 import { NativeModules } from 'react-native';
 var Q = require('q');
+import fetchPolyfill from 'react-native-fetch-polyfill';
 
 export default class RestClient {
 
@@ -77,7 +78,7 @@ export default class RestClient {
         if (this.baseUrl.startsWith('https'))
             fetchPromise = () => this.fetchHttps(fullRoute, opts);
         else
-            fetchPromise = () => fetch(fullRoute, opts);
+            fetchPromise = () => fetchPolyfill(fullRoute, opts);
         if (this.devMode && this.simulatedDelay > 0) {
             // Simulate an n-second delay in every request
             return this._simulateDelay()
